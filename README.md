@@ -12,7 +12,7 @@ Getting models to write code turned out to be the easy part. The harder problem,
 
 | Project | What it is |
 |---|---|
-| [verified-ai-development](https://github.com/brooksmoore/verified-ai-development) | How I run a multi-model build process without being able to read the code fluently, and the verification playbook behind it |
+| [LoopEngineering](https://github.com/brooksmoore/LoopEngineering) | How I run a multi-model build process without being able to read the code fluently, and the verification playbook behind it |
 | [aissistant](https://github.com/brooksmoore/aissistant) | Personal AI assistant on Telegram with a Claude brain. Local-first, multi-instance, guarded against its own hallucinations. Two daily users since July 2026 |
 | [Quotable](https://github.com/brooksmoore/Quotable) | AI caption generator. Cloudflare Worker with a KV cache and a provider-agnostic LLM layer |
 | [TunnelPong](https://github.com/brooksmoore/TunnelPong) | 2.5D tunnel Pong for iOS, built in SpriteKit |
