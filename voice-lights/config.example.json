@@ -1,0 +1,64 @@
+{
+  "key": "your-meross-device-key",
+  "invert_temperature": false,
+  "timeout": 4.0,
+  "retries": 1,
+  "wake_words": ["lights", "studio", "computer"],
+
+  "devices": [
+    {
+      "id": "torch",
+      "label": "Torch Light",
+      "ip": "192.168.1.21",
+      "model": "msl120",
+      "serial": "520501240305800",
+      "aliases": ["torch", "the torch", "spotlight"],
+      "channel": 0
+    },
+    {
+      "id": "lamp",
+      "label": "Lamp Light",
+      "ip": "192.168.1.22",
+      "model": "msl120",
+      "serial": "520503220405682",
+      "aliases": ["lamp", "desk lamp"],
+      "channel": 0
+    },
+    {
+      "id": "mushroom",
+      "label": "Mushroom Light",
+      "ip": "192.168.1.23",
+      "model": "msl120",
+      "serial": "520501240301470",
+      "aliases": ["mushroom", "shroom", "the shroom"],
+      "channel": 0
+    }
+  ],
+
+  "scenes": {
+    "night": {
+      "phrases": ["goodnight", "good night", "bedtime", "sleep"],
+      "steps": [{ "device": "all", "power": false }]
+    },
+    "movie": {
+      "phrases": ["movie", "movie mode", "film", "netflix"],
+      "steps": [
+        { "device": "torch", "power": false },
+        { "device": "lamp", "power": false },
+        { "device": "mushroom", "brightness": 12, "color": "deep blue" }
+      ]
+    },
+    "focus": {
+      "phrases": ["focus", "work", "work mode", "deep work"],
+      "steps": [{ "device": "all", "brightness": 100, "temperature": "daylight" }]
+    },
+    "chill": {
+      "phrases": ["chill", "relax", "wind down"],
+      "steps": [
+        { "device": "torch", "brightness": 25, "temperature": "warm" },
+        { "device": "mushroom", "brightness": 20, "color": "purple" },
+        { "device": "lamp", "power": false }
+      ]
+    }
+  }
+}

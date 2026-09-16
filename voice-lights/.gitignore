@@ -1,0 +1,6 @@
+# The device key lives here. Never commit it.
+config.json
+*.crt
+*.key
+__pycache__/
+*.pyc
