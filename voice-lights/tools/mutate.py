@@ -21,6 +21,8 @@ MUTANTS = [
  ("clause splitting on 'then'", '_SPLIT = re.compile(r"\\bthen\\b|\\balso\\b|;")', '_SPLIT = re.compile(r";")'),
  ("big/small step sizes",       'if joined & BIG_STEP_WORDS:\n            return BIG_STEP', 'if joined & BIG_STEP_WORDS:\n            return DEFAULT_STEP'),
  ("nonsense is rejected",       'result.understood = bool(result.commands)', 'result.understood = True'),
+ ("unknown-name guard",         'if UNKNOWN_TARGET in tokens:', 'if False:'),
+ ("guard knows the vocabulary", 'previous not in self.known_words', 'previous not in SAFE_BEFORE_LIGHT'),
  ("percent clamping",           'return max(0, min(100, int(match.group(1))))', 'return int(match.group(1))'),
  ("status question rule",       'if self._is_status_question(tokens, explicit):', 'if False:'),
  ("status needs a light word",  'return explicit or any(t in ON_WORDS | OFF_WORDS for t in tokens)', 'return True'),

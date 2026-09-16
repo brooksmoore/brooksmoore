@@ -88,6 +88,35 @@ class ParserTest(unittest.TestCase):
         cmd = self.one("shroom off")
         self.assertEqual(cmd.targets, ["mushroom"])
 
+    def test_unknown_light_name_is_refused_not_broadcast(self):
+        # A name the parser does not know must not quietly mean "all of them".
+        for phrase in ["kitchen light off", "ceiling light to 50",
+                       "desk light red"]:
+            cmd = self.one(phrase)
+            self.assertEqual(cmd.action, "unknown", phrase)
+            self.assertEqual(cmd.targets, [], phrase)
+
+    def test_bare_lights_still_means_everything(self):
+        # The guard above must not break the phrasings that legitimately mean
+        # every light in the room.
+        for phrase in ["lights out", "turn the lights off", "all the lights off",
+                       "kill the lights", "dim the lights"]:
+            cmd = self.one(phrase)
+            self.assertNotEqual(cmd.action, "unknown", phrase)
+            self.assertEqual(set(cmd.targets), ALL, phrase)
+
+    def test_known_light_name_still_resolves(self):
+        cmd = self.one("torch light off")
+        self.assertEqual(cmd.action, "off")
+        self.assertEqual(cmd.targets, ["torch"])
+
+    def test_vocabulary_words_before_lights_are_not_names(self):
+        # Regression: "which lights are on" once read "which" as a light name.
+        for phrase in ["which lights are on", "make the lights warm",
+                       "blue lights on"]:
+            cmd = self.one(phrase)
+            self.assertNotEqual(cmd.action, "unknown", phrase)
+
     def test_bare_command_targets_everything(self):
         cmd = self.one("50 percent")
         self.assertEqual(set(cmd.targets), ALL)

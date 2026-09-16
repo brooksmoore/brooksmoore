@@ -150,6 +150,9 @@ class Controller:
             return self._run_scene(str(command.value))
         if command.action == "status":
             return self._status(), []
+        if command.action == "unknown":
+            known = ", ".join(b.label for b in self.bulbs.values())
+            return "", [f"I don't know a light called {command.value}. I have: {known}"]
 
         targets = [self.bulbs[t] for t in command.targets if t in self.bulbs]
         if not targets:

@@ -30,6 +30,7 @@ class Found:
     firmware: str = ""
     is_light: bool = False
     key_ok: bool = True
+    key: str = ""  # the candidate key this device accepted
 
     def as_device(self, index: int) -> dict:
         return {
@@ -57,10 +58,20 @@ def local_subnet() -> ipaddress.IPv4Network:
     return ipaddress.ip_network(f"{ip}/24", strict=False)
 
 
+def _split_host(ip: str, default_port: int = 80) -> tuple[str, int]:
+    """Accept "host" or "host:port"; bulbs are on 80 but --hosts may override."""
+    if ip.count(":") == 1:
+        host, _, port = ip.partition(":")
+        if port.isdigit():
+            return host, int(port)
+    return ip, default_port
+
+
 def _port_open(ip: str, port: int = 80, timeout: float = 0.35) -> bool:
+    host, port = _split_host(ip, port)
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(timeout)
-        return sock.connect_ex((ip, port)) == 0
+        return sock.connect_ex((host, port)) == 0
 
 
 def probe(ip: str, key: str = "", timeout: float = 2.0) -> Found | None:
@@ -101,9 +112,31 @@ def probe(ip: str, key: str = "", timeout: float = 2.0) -> Found | None:
     return found
 
 
+def probe_keys(ip: str, keys: Iterable[str], timeout: float = 2.0) -> Found | None:
+    """Try each candidate device key against one host.
+
+    Bulbs provisioned through HomeKit rather than the Meross app often accept
+    an empty key, so trying "" costs one request and can remove the need for a
+    Meross login entirely. Returns the first key that is accepted; if every
+    candidate is rejected, returns the rejection so the caller can still report
+    that a Meross device is there.
+    """
+    rejected: Found | None = None
+    for key in keys:
+        found = probe(ip, key, timeout)
+        if found is None:
+            return None  # Not a Meross device at all.
+        if found.key_ok:
+            found.key = key
+            return found
+        rejected = found
+    return rejected
+
+
 def scan(
     hosts: Iterable[str] | None = None,
-    key: str = "",
+    key: str | None = None,
+    keys: Iterable[str] | None = None,
     workers: int = 64,
     progress=None,
 ) -> list[Found]:
@@ -113,12 +146,17 @@ def scan(
         hosts = [str(h) for h in network.hosts()]
     hosts = list(hosts)
 
+    candidates = list(keys) if keys is not None else [key or ""]
+    # Always worth trying the empty key; it is one extra request per device.
+    if "" not in candidates:
+        candidates.append("")
+
     with ThreadPoolExecutor(max_workers=workers) as pool:
         open_hosts = [
             ip for ip, is_open in zip(hosts, pool.map(_port_open, hosts)) if is_open
         ]
         if progress:
             progress(f"{len(open_hosts)} hosts listening on port 80; probing")
-        results = list(pool.map(lambda ip: probe(ip, key), open_hosts))
+        results = list(pool.map(lambda ip: probe_keys(ip, candidates), open_hosts))
 
     return [found for found in results if found]

@@ -42,10 +42,33 @@ whether the grammar matches how you actually speak.
 
 Requires Python 3.9+. No dependencies to install.
 
-### 1. Get the device key
+### 1. Find the bulbs
 
-Every local command is signed with a per-account secret called the device key.
-It is the one thing you cannot read off the bulb itself.
+```bash
+python3 run.py discover
+```
+
+Scans your network, then **blinks each bulb three times** and asks which one it
+was. That is how "Torch Light", "Lamp Light" and "Mushroom Light" get attached
+to the right IP addresses — three identical MSL120s are otherwise
+indistinguishable. Answers are written to `config.json`.
+
+Naming them properly matters: a name the parser doesn't know is refused rather
+than applied to every bulb, so `mushroom light off` before you've named
+anything will tell you it doesn't know a "mushroom" instead of turning off the
+whole studio.
+
+If your bulbs have static DHCP reservations, great. If not, re-run `discover`
+if one ever stops answering.
+
+### 2. A device key, only if your bulbs want one
+
+Local commands are signed with a per-account secret called the device key.
+`discover` tries an empty key automatically, and **bulbs provisioned through
+HomeKit rather than the Meross app often accept it** — in which case you are
+already done and can skip this entirely.
+
+If `discover` reports that your bulbs rejected every key, fetch the real one:
 
 ```bash
 python3 run.py key
@@ -63,25 +86,8 @@ be found in:
 * Home Assistant's Meross LAN integration, which stores it per device.
 
 Put it in `config.json` as `"key"`, or export it as `MEROSS_KEY` to keep it out
-of the file entirely.
-
-**If the bulbs were only ever added to Apple Home and never to the Meross app,**
-there is no cloud key to fetch. Add them in the Meross app once — HomeKit
-pairing survives, and the two work side by side.
-
-### 2. Find the bulbs
-
-```bash
-python3 run.py discover
-```
-
-Scans your network, then **blinks each bulb three times** and asks which one it
-was. That is how "Torch Light", "Lamp Light" and "Mushroom Light" get attached
-to the right IP addresses — three identical MSL120s are otherwise
-indistinguishable. Answers are written to `config.json`.
-
-If your bulbs have static DHCP reservations, great. If not, re-run `discover`
-if one ever stops answering.
+of the file entirely. Bulbs that need a different key from the rest get their
+own `"key"` entry, written automatically.
 
 ### 3. Run it
 
@@ -146,7 +152,11 @@ as a chip in the UI and as a phrase the parser accepts, with no code changes.
 ## When something doesn't work
 
 **"rejected the device key"** — the key is wrong. `run.py key` again, or read
-it from one of the places listed above.
+it from one of the places listed above. `discover` already tried the empty key,
+so this means your bulbs genuinely want the account one.
+
+**"I don't know a light called ..."** — that name isn't in `config.json`. The
+reply lists the names it does have; add nicknames under `aliases`.
 
 **Microphone button does nothing / permission refused** — you're on `http://`
 from a phone. Restart with `--tls`.
@@ -176,12 +186,12 @@ of it has been tested against your actual bulbs.**
   and once against firmware that rejects combined capacity masks, because these
   bulbs are on different firmware versions.
 * `tools/mutate.py` checks that the grammar tests can actually fail, by breaking
-  the parser 18 different ways and confirming each break is caught. Two tests
+  the parser 21 different ways and confirming each break is caught. Two tests
   originally passed against a broken parser; both were fixed rather than kept.
 
 ```bash
-python3 -m unittest discover -s tests    # 74 tests
-python3 tools/mutate.py                  # 18/18 mutants killed
+python3 -m unittest discover -s tests    # 88 tests
+python3 tools/mutate.py                  # 21/21 mutants killed
 ```
 
 What that does **not** cover: whether real MSL120 firmware accepts these exact
@@ -195,7 +205,7 @@ and `run.py demo` plus `run.py state` are the fastest way to find out.
 run.py                  entry point: discover, key, serve, say, state, demo
 voicelights/
   meross.py             signed local protocol for Meross devices
-  discovery.py          finds bulbs on the LAN
+  discovery.py          finds bulbs on the LAN, and which key they accept
   cloud.py              one-time device-key fetch (the only cloud call)
   intents.py            speech -> commands. No model, just a grammar
   controller.py         runs commands against bulbs, in parallel

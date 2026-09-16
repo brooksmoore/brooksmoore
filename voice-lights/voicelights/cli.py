@@ -36,21 +36,37 @@ def cmd_discover(args) -> int:
         conf = dict(config_mod.DEFAULTS)
         conf["_path"] = args.config or str(config_mod.DEFAULT_PATHS[0])
 
-    key = args.key or conf.get("key") or ""
-    if not key and not args.no_cloud:
-        print("No device key yet. Sign in to Meross to fetch it (or Ctrl-C to skip).")
-        try:
-            key = prompt_for_key(args)
-        except KeyboardInterrupt:
-            print("\nSkipped. Bulbs will still be found, but not controllable yet.")
-            key = ""
-    conf["key"] = key
+    # Try what we already have, then the empty key. Bulbs provisioned through
+    # HomeKit rather than the Meross app frequently accept an empty key, so a
+    # cloud login is a last resort rather than step one.
+    candidates = [k for k in [args.key, conf.get("key")] if k]
+    candidates.append("")
 
     hosts = args.hosts.split(",") if args.hosts else None
     print("Scanning the local network...")
     started = time.perf_counter()
-    found = discovery.scan(hosts, key=key, progress=lambda m: print(f"  {m}"))
+    found = discovery.scan(hosts, keys=candidates, progress=lambda m: print(f"  {m}"))
     elapsed = time.perf_counter() - started
+
+    # Only ask for credentials if a device was actually found and rejected
+    # every key we had.
+    if found and not any(f.key_ok for f in found) and not args.no_cloud:
+        print(f"\nFound {len(found)} Meross device(s), but none accepted a key.")
+        print("Sign in to Meross to fetch the right one (or Ctrl-C to skip).")
+        try:
+            key = prompt_for_key(args)
+            print("  Re-probing with the fetched key...")
+            found = discovery.scan([f.ip for f in found], keys=[key],
+                                   progress=lambda m: print(f"  {m}"))
+        except KeyboardInterrupt:
+            print("\nSkipped. Bulbs will still be listed, but not controllable yet.")
+
+    working = {f.key for f in found if f.key_ok}
+    if working:
+        # One key normally covers every bulb on an account.
+        conf["key"] = sorted(working, key=len)[-1]
+        if len(working) > 1:
+            print("\nNote: these bulbs use different device keys; each is stored per-device.")
 
     if not found:
         print(f"\nNo Meross devices found ({elapsed:.1f}s).")
@@ -62,7 +78,8 @@ def cmd_discover(args) -> int:
     if bad_key:
         print(f"\n{len(bad_key)} device(s) rejected the device key.")
         print("Found them, but cannot read or control them until the key is right.")
-        print("Run `python run.py key` to fetch it from your Meross account.")
+        print("Run `python run.py key` to fetch it, or see README.md for where")
+        print("else the key can be found.")
         for f in bad_key:
             print(f"  {f.ip}")
 
@@ -73,7 +90,7 @@ def cmd_discover(args) -> int:
 
     devices = []
     for index, f in enumerate(lights, start=1):
-        name = identify(f, key, index, conf, skip=args.no_identify)
+        name = identify(f, f.key, index, conf, skip=args.no_identify)
         device = {
             "id": slug(name),
             "label": name,
@@ -83,6 +100,8 @@ def cmd_discover(args) -> int:
             "aliases": [],
             "channel": 0,
         }
+        if f.key != conf.get("key", ""):
+            device["key"] = f.key
         devices.append(device)
 
     conf["devices"] = devices

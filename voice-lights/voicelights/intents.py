@@ -69,6 +69,8 @@ TEMPERATURES: dict[str, int] = {
     "icy": 100,
 }
 
+UNKNOWN_TARGET = "__unknown"
+
 OFF_WORDS = {"off", "out", "kill", "shut", "darkness", "dark"}
 ON_WORDS = {"on"}
 TOGGLE_WORDS = {"toggle", "flip", "switch"}
@@ -77,6 +79,16 @@ PRONOUNS = {"it", "that", "this", "them", "those", "these"}
 # "status" on its own is a status request. A bare question word is not: "what's
 # the weather tomorrow" must not be answered with a light report, so a question
 # only counts when it also mentions a light or its power state.
+# Grammar words that may sit in front of a bare "light"/"lights" when it means
+# every light: "turn the lights off", "which lights are on", "kill the lights".
+# The full known vocabulary is added to this at parser construction; a word in
+# that slot that is in none of it is a light name we do not know.
+SAFE_BEFORE_LIGHT = {
+    "the", "my", "a", "an", "some", "both", "of", "with", "in", "for",
+    "turn", "set", "make", "put", "bring", "change", "go", "and", "hey",
+    "ok", "okay", "please", "just", "now", "no", "to", "at",
+}
+
 STATUS_NOUNS = {"status", "state", "report"}
 QUESTION_WORDS = {"what's", "whats", "what", "which", "is", "are", "how"}
 
@@ -234,10 +246,28 @@ class IntentParser:
                 self.alias_index.append((normalize(alias), dev_id))
         # Longest aliases first so "torch light" beats "torch".
         self.alias_index.sort(key=lambda pair: -len(pair[0].split()))
+        self._unknown_names: list[str] = []
+
+        # Every word the grammar recognises anywhere. Used to decide whether a
+        # word in front of "light(s)" is a name we do not know.
+        self.known_words: set[str] = set(SAFE_BEFORE_LIGHT)
+        self.known_words |= OFF_WORDS | ON_WORDS | TOGGLE_WORDS | ALL_WORDS
+        self.known_words |= PRONOUNS | STATUS_NOUNS | QUESTION_WORDS
+        self.known_words |= BRIGHTER_WORDS | DIMMER_WORDS
+        self.known_words |= BIG_STEP_WORDS | SMALL_STEP_WORDS
+        self.known_words |= {"dim", "percent", "by"}
+        self.known_words |= set(NUMBER_WORDS)
+        for table in (COLORS, TEMPERATURES, LEVEL_PHRASES, self.scene_phrases):
+            for phrase in table:
+                self.known_words |= set(phrase.split())
+        for aliases in devices.values():
+            for alias in aliases:
+                self.known_words |= set(normalize(alias).split())
 
     # -- public ------------------------------------------------------------
     def parse(self, text: str, last_targets: list[str] | None = None) -> ParseResult:
         result = ParseResult(transcript=text)
+        self._unknown_names: list[str] = []
         normalized = normalize(text)
         result.normalized = normalized
         if not normalized:
@@ -283,6 +313,20 @@ class IntentParser:
         i = 0
         counter = 0
         while i < len(tokens):
+            # "mushroom light" when no bulb answers to "mushroom" must not
+            # quietly become every light in the room.
+            if tokens[i] in {"light", "lights"} and out:
+                previous = out[-1]
+                if (
+                    previous not in self.known_words
+                    and not previous.startswith("__")
+                    and not previous.isdigit()
+                ):
+                    out[-1] = UNKNOWN_TARGET
+                    self._unknown_names.append(previous)
+                    i += 1
+                    continue
+
             match = self._match_alias(tokens, i)
             if not match:
                 out.append(tokens[i])
@@ -374,6 +418,10 @@ class IntentParser:
     ) -> tuple[list[Command], list[str]]:
         if not tokens:
             return [], []
+
+        if UNKNOWN_TARGET in tokens:
+            name = self._unknown_names[0] if self._unknown_names else "that"
+            return [Command("unknown", [], name, said=f"No light called {name}")], []
 
         targets: list[str] = []
         rest: list[str] = []

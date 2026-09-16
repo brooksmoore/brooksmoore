@@ -161,6 +161,14 @@ class ControlTest(unittest.TestCase):
         self.assertEqual(result["commands"], [])
         self.assertEqual([b.on for b in self.bulbs.values()], [False, False, False])
 
+    def test_unknown_light_name_changes_nothing(self):
+        result = self.controller.say("kitchen light on")
+        self.assertFalse(result["ok"])
+        self.assertIn("don't know a light called kitchen", result["reply"])
+        # It should say what it does have.
+        self.assertIn("Torch Light", result["reply"])
+        self.assertEqual([b.on for b in self.bulbs.values()], [False, False, False])
+
     def test_wrong_key_is_reported_not_swallowed(self):
         self.controller.bulbs["torch"].key = "wrong"
         result = self.controller.say("turn on the torch")
